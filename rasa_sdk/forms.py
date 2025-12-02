@@ -196,8 +196,13 @@ class ValidationAction(Action, ABC):
 
     def global_slots(self, domain: "DomainDict") -> List[Text]:
         """Returns all slots that contain no form condition."""
-        all_slots = domain.get("slots", {})
-        return [k for k, v in all_slots.items() if not self._is_mapped_to_form(v)]
+        all_slots = domain.get("slots")
+        if not all_slots:
+            return []
+
+        # Use local variable lookups for slight speed gain
+        is_mapped_to_form = self._is_mapped_to_form
+        return [k for k, v in all_slots.items() if not is_mapped_to_form(v)]
 
     def domain_slots(self, domain: "DomainDict") -> List[Text]:
         """Returns slots which were mapped in the domain.
