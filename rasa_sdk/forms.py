@@ -111,18 +111,27 @@ class ValidationAction(Action, ABC):
             `SlotSet` for any extracted slots.
         """
         custom_slots = {}
+
+        # Pre-compute domain slots once to avoid recomputation in _extract_slot
+        domain_slots_list = self.domain_slots(domain)
+        domain_slots_set = set(domain_slots_list)
+
         slots_to_extract = await self.required_slots(
-            self.domain_slots(domain), dispatcher, tracker, domain
+            domain_slots_list, dispatcher, tracker, domain
         )
 
+        # Loop variables stored locally for performance
+        slot_update = custom_slots.update
+        tracker_slots_update = tracker.slots.update
+
         for slot in slots_to_extract:
-            extraction_output = await self._extract_slot(
-                slot, dispatcher, tracker, domain
+            extraction_output = await self._extract_slot_fast(
+                slot, dispatcher, tracker, domain, domain_slots_set
             )
-            custom_slots.update(extraction_output)
-            # for sequential consistency, also update tracker
-            # to make changes visible to subsequent extract_{slot_name}
-            tracker.slots.update(extraction_output)
+            slot_update(extraction_output)
+            tracker_slots_update(extraction_output)
+
+        # create slot events: dictionary is already built
 
         return [SlotSet(slot, value) for slot, value in custom_slots.items()]
 
@@ -221,6 +230,39 @@ class ValidationAction(Action, ABC):
         method_name = f"extract_{slot_name.replace('-', '_')}"
 
         slot_in_domain = slot_name in self.domain_slots(domain)
+        extract_method = getattr(self, method_name, None)
+
+        if not extract_method:
+            if not slot_in_domain:
+                warnings.warn(
+                    f"No method '{method_name}' found for slot "
+                    f"'{slot_name}'. Skipping extraction for this slot."
+                )
+            return {}
+
+        extracted = await utils.call_potential_coroutine(
+            extract_method(dispatcher, tracker, domain)
+        )
+
+        if isinstance(extracted, dict):
+            return extracted
+
+        warnings.warn(
+            f"Cannot extract `{slot_name}`: make sure the extract method "
+            f"returns the correct output."
+        )
+        return {}
+
+    async def _extract_slot_fast(
+        self,
+        slot_name: Text,
+        dispatcher: "CollectingDispatcher",
+        tracker: "Tracker",
+        domain: "DomainDict",
+        domain_slots_set: set,
+    ) -> Dict[Text, Any]:
+        method_name = f"extract_{slot_name.replace('-', '_')}"
+        slot_in_domain = slot_name in domain_slots_set
         extract_method = getattr(self, method_name, None)
 
         if not extract_method:
