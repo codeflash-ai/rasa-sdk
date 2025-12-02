@@ -3,6 +3,11 @@ import warnings
 from typing import Dict, Text, Any, List, Optional, Union
 import datetime
 
+_FORMVALIDATION_DEPR_MSG = (
+    "The FormValidation` event is deprecated. Please use the "
+    "`LoopInterrupted` event instead."
+)
+
 logger = logging.getLogger(__name__)
 
 EventType = Dict[Text, Any]
@@ -199,8 +204,7 @@ def LoopInterrupted(
 # noinspection PyPep8Naming
 def FormValidation(validate: bool, timestamp: Optional[float] = None) -> EventType:
     warnings.warn(
-        f"The {FormValidation.__name__}` event is deprecated. Please use the "
-        f"`{LoopInterrupted.__name__}` event instead.",
+        _FORMVALIDATION_DEPR_MSG,
         DeprecationWarning,
     )
     # `validate = False` is the same as `is_interrupted = True`
