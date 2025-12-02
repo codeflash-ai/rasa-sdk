@@ -252,18 +252,37 @@ class ActionExecutor:
             recursive: If `True`, and `package` is a package, import all of its
                 sub-packages as well.
         """
-        if isinstance(package, str):
-            package = self._import_module(package)
+        # Avoid repeated attribute lookup and method rebinding for loop efficiency
+        _import_module = self._import_module
+        _import_submodules = self._import_submodules
 
-        if not getattr(package, "__path__", None):
+        if isinstance(package, str):
+            package = _import_module(package)
+
+        package_path = getattr(package, "__path__", None)
+        if not package_path:
             return
 
-        for loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
-            full_name = package.__name__ + "." + name
-            self._import_module(full_name)
+        package_name = package.__name__
 
-            if recursive and is_pkg:
-                self._import_submodules(full_name)
+        # Gather all submodules first to avoid repeated recursive python frame setup/teardown
+        walk_iter = pkgutil.walk_packages(package_path)
+        # Build a list in one pass for reuse
+        if recursive:
+            pkginfo = [(name, is_pkg) for _, name, is_pkg in walk_iter]
+            for name, is_pkg in pkginfo:
+                full_name = f"{package_name}.{name}"
+                _import_module(full_name)
+
+            for name, is_pkg in pkginfo:
+                if is_pkg:
+                    full_name = f"{package_name}.{name}"
+                    _import_submodules(full_name)
+        else:
+            for _, name, is_pkg in walk_iter:
+                full_name = f"{package_name}.{name}"
+                _import_module(full_name)
+                # No recursive calls
 
     def _import_module(self, name: Text) -> types.ModuleType:
         """Import a Python module. If possible, register the file where it came from.
@@ -277,12 +296,14 @@ class ActionExecutor:
         module = importlib.import_module(name)
 
         module_file = getattr(module, "__file__", None)
-        if module_file:
-            # If the module we're importing is a namespace package (a package
-            # without __init__.py), then there's nothing to watch for the
-            # package itself.
-            timestamp = os.path.getmtime(module_file)
-            self._modules[module_file] = TimestampModule(timestamp, module)
+        if module_file is not None:
+            try:
+                timestamp = os.path.getmtime(module_file)
+            except OSError:
+                # Silently ignore if file is missing (e.g. namespace pkgs)
+                pass
+            else:
+                self._modules[module_file] = TimestampModule(timestamp, module)
 
         return module
 
