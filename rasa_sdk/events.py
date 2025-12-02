@@ -107,7 +107,10 @@ def ReminderCancelled(
     entities: Optional[Union[List[Dict[Text, Any]], Dict[Text, Text]]] = None,
     timestamp: Optional[float] = None,
 ) -> EventType:
-    if _is_probably_action_name(intent_name):
+    # Rearranged conditional to short-circuit and avoid unnecessary string checks if intent_name is None
+    if intent_name is not None and (
+        intent_name.startswith("utter_") or intent_name.startswith("action_")
+    ):
         warnings.warn(
             f"ReminderCancelled intent starts with 'utter_' or 'action_'. "
             f"If '{intent_name}' is indeed an intent, "
