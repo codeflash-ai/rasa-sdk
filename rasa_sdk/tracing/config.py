@@ -14,6 +14,7 @@ from rasa_sdk.tracing.endpoints import EndpointConfig, read_endpoint_config
 from rasa_sdk.tracing.instrumentation import instrumentation
 from rasa_sdk.executor import ActionExecutor
 from rasa_sdk.forms import ValidationAction, FormValidationAction
+import base64
 
 TRACING_SERVICE_NAME = os.environ.get("RASA_SDK_TRACING_SERVICE_NAME", "rasa_sdk")
 
@@ -160,15 +161,14 @@ class JaegerTracerConfigurer(TracerConfigurer):
         cls, jaeger_config: Dict[str, Any]
     ) -> Optional[list[tuple[str, str]]]:
         """Build OTLP headers from Jaeger authentication config."""
-        headers: list[tuple[str, str]] = []
-        if jaeger_config.get("username") and jaeger_config.get("password"):
-            import base64
-
-            credentials = base64.b64encode(
-                f"{jaeger_config['username']}:{jaeger_config['password']}".encode()
-            ).decode()
-            headers.append(("Authorization", f"Basic {credentials}"))
-        return headers if headers else None
+        username = jaeger_config.get("username")
+        password = jaeger_config.get("password")
+        if username and password:
+            # Credentials encode: combine immediately and avoid repeated dict accesses
+            credentials_string = f"{username}:{password}".encode()
+            credentials = base64.b64encode(credentials_string).decode()
+            return [("Authorization", f"Basic {credentials}")]
+        return None
 
 
 class OTLPCollectorConfigurer(TracerConfigurer):
