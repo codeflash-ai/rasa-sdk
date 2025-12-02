@@ -35,22 +35,23 @@ def get_object_name(
     Returns: the name of the actual object (value of key attribute in the
              knowledge base)
     """
-    mention = tracker.get_slot(SLOT_MENTION)
-    object_type = tracker.get_slot(SLOT_OBJECT_TYPE)
+    slots = tracker.slots
+    mention = slots.get(SLOT_MENTION)
+    object_type = slots.get(SLOT_OBJECT_TYPE)
 
     # the user referred to the object by a mention, such as "first one"
     if mention:
         return resolve_mention(tracker, ordinal_mention_mapping)
 
     # check whether the user referred to the objet by its name
-    object_name = tracker.get_slot(object_type)
+    object_name = slots.get(object_type)
     if object_name:
         return object_name
 
     if use_last_object_mention:
         # if no explicit mention was found, we assume the user just refers to the last
         # object mentioned in the conversation
-        return tracker.get_slot(SLOT_LAST_OBJECT)
+        return slots.get(SLOT_LAST_OBJECT)
 
     return None
 
@@ -77,10 +78,12 @@ def resolve_mention(
 
     Returns: name of an object
     """
-    mention = tracker.get_slot(SLOT_MENTION)
-    listed_items = tracker.get_slot(SLOT_LISTED_OBJECTS)
-    last_object = tracker.get_slot(SLOT_LAST_OBJECT)
-    last_object_type = tracker.get_slot(SLOT_LAST_OBJECT_TYPE)
+    # Batch slot lookup via single slots dict and localize values
+    slot_dict = tracker.slots
+    mention = slot_dict.get(SLOT_MENTION, None)
+    listed_items = slot_dict.get(SLOT_LISTED_OBJECTS, None)
+    last_object = slot_dict.get(SLOT_LAST_OBJECT, None)
+    last_object_type = slot_dict.get(SLOT_LAST_OBJECT_TYPE, None)
 
     if not mention:
         return None
