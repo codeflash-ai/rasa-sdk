@@ -312,10 +312,11 @@ class FormValidationAction(ValidationAction, ABC):
             If the `SlotSet` event sets `requested_slot` to `None`, the form will be
             deactivated.
         """
+        domain_slots_val = self.domain_slots(domain)
         required_slots = await self.required_slots(
-            self.domain_slots(domain), dispatcher, tracker, domain
+            domain_slots_val, dispatcher, tracker, domain
         )
-        if required_slots == self.domain_slots(domain):
+        if required_slots == domain_slots_val:
             # If users didn't override `required_slots` then we'll let the `FormAction`
             # within Rasa Open Source request the next slot.
             return None
