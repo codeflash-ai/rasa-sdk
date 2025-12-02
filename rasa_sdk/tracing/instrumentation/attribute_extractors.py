@@ -71,17 +71,35 @@ def extract_attrs_for_action_executor_create_api_response(
     event_names = []
     slot_names = []
 
+    event_seen = set()
+    slot_seen = set()
+
+    append_event_name = event_names.append
+    append_slot_name = slot_names.append
+
+    # Optimize repeated .get lookups and preserve order/uniqueness without dict overhead
     for event in events:
-        event_names.append(event.get("event"))
-        if event.get("event") == "slot" and event.get("name") != "requested_slot":
-            slot_names.append(event.get("name"))
-    utters = [
-        message.get("response") for message in messages if message.get("response")
-    ]
+        event_val = event.get("event")
+        if event_val not in event_seen:
+            append_event_name(event_val)
+            event_seen.add(event_val)
+        if event_val == "slot":
+            slot_val = event.get("name")
+            if slot_val != "requested_slot" and slot_val not in slot_seen:
+                append_slot_name(slot_val)
+                slot_seen.add(slot_val)
+
+    # Pre-allocate list by iterating once, avoid redundant .get
+    utters = []
+    append_utter = utters.append
+    for message in messages:
+        response = message.get("response")
+        if response:
+            append_utter(response)
 
     return {
-        "events": json.dumps(list(dict.fromkeys(event_names))),
-        "slots": json.dumps(list(dict.fromkeys(slot_names))),
+        "events": json.dumps(event_names),
+        "slots": json.dumps(slot_names),
         "utters": json.dumps(utters),
         "message_count": len(messages),
     }
