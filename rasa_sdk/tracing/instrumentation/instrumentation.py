@@ -43,8 +43,26 @@ def _check_extractor_argument_list(
     if attr_extractor is None:
         return False
 
-    fn_args = inspect.signature(fn)
-    attr_args = inspect.signature(attr_extractor)
+    # Cache signatures to avoid repeated expensive inspect.signature calls
+    # This is correct since signatures of functions do not change at runtime
+    # _sig_cache: Dict[Callable, inspect.Signature]
+    from inspect import signature
+
+    # Local static dictionary to persist signatures
+    # Using id(fn) instead of fn as key because wrapped functions may not compare equal
+    # and Python dict prevents keeping references to bound method objects
+    _sig_cache = _check_extractor_argument_list.__dict__.setdefault("_sig_cache", {})
+
+    fn_id = id(fn)
+    attr_id = id(attr_extractor)
+
+    if fn_id not in _sig_cache:
+        _sig_cache[fn_id] = signature(fn)
+    if attr_id not in _sig_cache:
+        _sig_cache[attr_id] = signature(attr_extractor)
+
+    fn_args = _sig_cache[fn_id]
+    attr_args = _sig_cache[attr_id]
 
     are_arglists_congruent = fn_args.parameters.keys() == attr_args.parameters.keys()
 
